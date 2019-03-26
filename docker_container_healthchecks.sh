@@ -24,6 +24,8 @@ check_containers() {
       curl -s -H "Content-Type: application/json" -X POST -d '{"content": "The '"${container}"' container is currently dead!"}' "${discordWebhookURL}"
     elif [ "${containerStatus}" = 'restarting' ];then
       curl -s -H "Content-Type: application/json" -X POST -d '{"content": "The '"${container}"' container is currently restarting!"}' "${discordWebhookURL}"
+    elif [ "${containerStatus}" = 'paused' ];then
+      curl -s -H "Content-Type: application/json" -X POST -d '{"content": "The '"${container}"' container is currently paused!"}' "${discordWebhookURL}"
     else
       curl -s -H "Content-Type: application/json" -X POST -d '{"content": "The '"${container}"' container currently has an unknown status!"}' "${discordWebhookURL}"
     fi
