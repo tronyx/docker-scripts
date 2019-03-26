@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
 # Script to check container status and report to Discord if any of them are not running
+# Tronyx
 
 # Define some variables
 tempDir='/tmp/'
