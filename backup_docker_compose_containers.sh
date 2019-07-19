@@ -120,6 +120,16 @@ root_check() {
     fi
 }
 
+# Check for empty arg
+check_empty_arg() {
+    for arg in "${args[@]:-}"; do
+        if [ -z "${arg}" ]; then
+            usage
+            exit
+        fi
+    done
+}
+
 # Update Docker images
 update_images() {
     /usr/local/bin/docker-compose -f "${composeFile}" pull -q
@@ -168,6 +178,7 @@ cleanup(){
 main(){
     root_check
     cmdline "${args[@]:-}"
+    check_empty_arg
     if [ "${backup}" = 'true' ]; then
         create_containers_list
         compose_down
