@@ -194,6 +194,7 @@ main(){
         domain_check
         cleanup
     elif [ "${all}" = 'true' ]; then
+        update_images
         create_containers_list
         compose_down
         backup
