@@ -9,9 +9,9 @@ IFS=$'\n\t'
 tempDir='/tmp/'
 composeFile='/home/docker-compose.yml'
 containerNamesFile="${tempDir}container_names.txt"
-# Define appdata directory path (No trailing slash)
+# Define appdata directory path (Requires trailing slash)
 appdataDirectory='/home/'
-# Define backup directory (No trailing slash)
+# Define backup directory (Requires trailing slash)
 backupDirectory='/mnt/docker_backup/'
 today=$(date +%Y-%m-%d)
 # Define time to keep backups
