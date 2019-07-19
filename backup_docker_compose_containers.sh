@@ -10,9 +10,9 @@ tempDir='/tmp/'
 composeFile='/home/docker-compose.yml'
 containerNamesFile="${tempDir}container_names.txt"
 # Define appdata directory path (No trailing slash)
-appdataDirectory='/home'
+appdataDirectory='/home/'
 # Define backup directory (No trailing slash)
-backupDirectory='/mnt/docker_backup'
+backupDirectory='/mnt/docker_backup/'
 today=$(date +%Y-%m-%d)
 # Define time to keep backups
 days=$(( ( $(date '+%s') - $(date -d '2 months ago' '+%s') ) / 86400 ))
@@ -39,7 +39,7 @@ compose_down() {
 # Loop through all containers to backup appdata dirs
 backup() {
   while IFS= read -r CONTAINER; do
-    tar czf "${backupDirectory}"/"${CONTAINER}"-"${today}".tar.gz "${appdataDirectory}"/"${CONTAINER}"/
+    tar czf "${backupDirectory}""${CONTAINER}"-"${today}".tar.gz "${appdataDirectory}""${CONTAINER}"/
   done < <(cat "${containerNamesFile}")
 }
 
@@ -62,7 +62,7 @@ domain_check(){
 
 # Cleanup backups older than two months and perform docker prune
 cleanup(){
-  find /mnt/docker_backup/*.tar.gz -mtime +"${days}" -type f -delete
+  find "${backupDirectory}"*.tar.gz -mtime +"${days}" -type f -delete
   docker system prune -f -a --volumes
 }
 
