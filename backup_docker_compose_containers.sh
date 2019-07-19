@@ -167,6 +167,7 @@ cleanup(){
 
 main(){
   root_check
+  cmdline "${args[@]:-}"
   if [ "${backup}" = 'true' ]; then
     create_containers_list
     compose_down
