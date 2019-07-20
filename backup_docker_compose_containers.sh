@@ -158,7 +158,8 @@ compose_up() {
     sleep 120
 }
 
-# Unpause UptimeRobot monitors if domain status is 200, otherwise leave them paused and send an SMS
+# Check if Domain is loading properly and, if so, unpause monitors with Tronitor
+# If not, send a text to specified number
 domain_check(){
     domainStatus=$(curl -sI https://"${domain}" |grep -i http/ |awk '{print $2}')
     domainCurl=$(curl -sI https://"${domain}" |head -2)
