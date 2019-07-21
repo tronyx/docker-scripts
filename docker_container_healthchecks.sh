@@ -20,22 +20,25 @@ create_containers_list() {
 
 # Function to check Docker containers
 check_containers() {
-  while IFS= read -r container; do
-    containerStatus=$(docker inspect "${container}" |jq .[].State.Status |tr -d '"')
-    if [ "${containerStatus}" = 'running' ];then
-      :
-    elif [ "${containerStatus}" = 'exited' ];then
-      curl -s -H "Content-Type: application/json" -X POST -d '{"content": "'"${discordUserID}"' The '"${container}"' container is currently stopped!"}' "${discordWebhookURL}"
-    elif [ "${containerStatus}" = 'dead' ];then
-      curl -s -H "Content-Type: application/json" -X POST -d '{"content": "'"${discordUserID}"'The '"${container}"' container is currently dead!"}' "${discordWebhookURL}"
-    elif [ "${containerStatus}" = 'restarting' ];then
-      curl -s -H "Content-Type: application/json" -X POST -d '{"content": "'"${discordUserID}"'The '"${container}"' container is currently restarting!"}' "${discordWebhookURL}"
-    elif [ "${containerStatus}" = 'paused' ];then
-      curl -s -H "Content-Type: application/json" -X POST -d '{"content": "'"${discordUserID}"'The '"${container}"' container is currently paused!"}' "${discordWebhookURL}"
-    else
-      curl -s -H "Content-Type: application/json" -X POST -d '{"content": "'"${discordUserID}"'The '"${container}"' container currently has an unknown status!"}' "${discordWebhookURL}"
-    fi
-  done < <(cat "${containerNamesFile}")
+  if [ ! -s "${containerNamesFile}" ]; then
+    echo "There are currently no Docker containers on this Server!"
+    exit 0
+  else
+    while IFS= read -r container; do
+      containerStatus=$(docker inspect "${container}" |jq .[].State.Status |tr -d '"')
+      if [ "${containerStatus}" = 'running' ];then
+        :
+      elif [ "${containerStatus}" = 'exited' ];then
+        curl -s -H "Content-Type: application/json" -X POST -d '{"content": "'"${discordUserID}"' The '"${container}"' container is currently stopped!"}' "${discordWebhookURL}"
+      elif [ "${containerStatus}" = 'dead' ];then
+        curl -s -H "Content-Type: application/json" -X POST -d '{"content": "'"${discordUserID}"' The '"${container}"' container is currently dead!"}' "${discordWebhookURL}"
+      elif [ "${containerStatus}" = 'restarting' ];then
+        curl -s -H "Content-Type: application/json" -X POST -d '{"content": "'"${discordUserID}"' The '"${container}"' container is currently restarting!"}' "${discordWebhookURL}"
+      else
+        curl -s -H "Content-Type: application/json" -X POST -d '{"content": "'"${discordUserID}"' The '"${container}"' container currently has an unknown status!"}' "${discordWebhookURL}"
+      fi
+    done < <(cat "${containerNamesFile}")
+  fi
 }
 
 # Main function to run all other functions
