@@ -15,7 +15,7 @@ discordUserID='<@!123492578063015834>'
 
 # Function to create list of Docker containers
 create_containers_list() {
-  docker ps --format '{{.Names}}' |sort > "${containerNamesFile}"
+  docker ps -a --format '{{.Names}}' |sort > "${containerNamesFile}"
 }
 
 # Function to check Docker containers
