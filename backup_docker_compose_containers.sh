@@ -139,7 +139,7 @@ update_images() {
 
 # Create list of container names
 create_containers_list() {
-    docker ps --format '{{.Names}}' |sort > "${containerNamesFile}"
+    /usr/local/bin/docker-compose -f "${composeFile}" config --services | sort > "${containerNamesFile}"
 }
 
 # Take down containers and networks
