@@ -142,19 +142,19 @@ pause_all_monitors() {
 # Update Docker images
 update_images() {
     echo 'Updating Docker images...'
-    COMPOSE_HTTP_TIMEOUT=120 /usr/local/bin/docker-compose -f "${composeFile}" pull -q --ignore-pull-failures >/dev/null 2>&1 || echo "There was an issues pulling the image for one or more container. Run a pull manually to determine which containers are problematic."
+    COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" pull -q --ignore-pull-failures >/dev/null 2>&1 || echo "There was an issues pulling the image for one or more container. Run a pull manually to determine which containers are problematic."
 }
 
 # Create list of container names
 create_containers_list() {
     echo 'Creating list of Docker containers...'
-    /usr/local/bin/docker-compose -f "${composeFile}" config --services | sort > "${containerNamesFile}"
+    COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" config --services | sort > "${containerNamesFile}"
 }
 
 # Take down containers and networks
 compose_down() {
     echo 'Performing docker-compose down...'
-    COMPOSE_HTTP_TIMEOUT=120 /usr/local/bin/docker-compose -f "${composeFile}" down
+    COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" down
 }
 
 # Loop through all containers to backup appdata dirs
@@ -170,7 +170,7 @@ backup() {
 # Start containers and sleep to make sure they have time to startup
 compose_up() {
     echo 'Performing docker-compose up...'
-    COMPOSE_HTTP_TIMEOUT=120 /usr/local/bin/docker-compose -f "${composeFile}" up -d --no-color
+    COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" up -d --no-color
     sleep 120
 }
 

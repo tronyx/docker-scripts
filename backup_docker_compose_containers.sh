@@ -134,17 +134,20 @@ check_empty_arg() {
 
 # Update Docker images
 update_images() {
-    /usr/local/bin/docker-compose -f "${composeFile}" pull -q
+    echo 'Updating Docker images...'
+    COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" pull -q --ignore-pull-failures >/dev/null 2>&1 || echo "There was an issues pulling the image for one or more container. Run a pull manually to determine which containers are problematic."
 }
 
 # Create list of container names
 create_containers_list() {
-    /usr/local/bin/docker-compose -f "${composeFile}" config --services | sort > "${containerNamesFile}"
+    echo 'Creating list of Docker containers...'
+    COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" config --services | sort > "${containerNamesFile}"
 }
 
 # Take down containers and networks
 compose_down() {
-    /usr/local/bin/docker-compose -f "${composeFile}" down
+    echo 'Performing docker-compose down...'
+    COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" down
 }
 
 # Loop through all containers to backup appdata dirs
@@ -159,7 +162,7 @@ backup() {
 
 # Start containers and sleep to make sure they have time to startup
 compose_up() {
-    /usr/local/bin/docker-compose -f "${composeFile}" up -d --no-color
+    COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" up -d --no-color
     sleep 120
 }
 
