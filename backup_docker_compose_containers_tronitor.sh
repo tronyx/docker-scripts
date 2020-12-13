@@ -21,7 +21,7 @@ domain='domain.com'
 # Define your SMS e-mail address (AT&T as an example)
 smsAddress='5551235555@txt.att.net'
 # Exclude containers you do not want to be backed up
-exclude=("gitlab-dind" "cfddns")
+exclude=("container-1" "container-2" "container-3")
 # Arguments
 readonly args=("$@")
 # Colors
@@ -209,7 +209,6 @@ main(){
         pause_all_monitors
         update_images
         create_containers_list
-        compose_down
         compose_up
         unpause_check
         cleanup
