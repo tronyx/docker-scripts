@@ -27,7 +27,7 @@ readonly args=("$@")
 # Colors
 readonly grn='\e[32m'
 readonly red='\e[31m'
-readonly ylw='\e[33m'
+#readonly ylw='\e[33m'
 readonly lorg='\e[38;5;130m'
 readonly endColor='\e[0m'
 
@@ -109,7 +109,7 @@ get_scriptname() {
 }
 
 readonly scriptname="$(get_scriptname)"
-readonly scriptpath="$(cd -P "$(dirname "${scriptname}")" > /dev/null && pwd)"
+#readonly scriptpath="$(cd -P "$(dirname "${scriptname}")" > /dev/null && pwd)"
 
 # Check whether or not user is root or used sudo
 root_check() {
