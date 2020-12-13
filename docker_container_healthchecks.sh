@@ -6,7 +6,7 @@
 # Define some variables
 tempDir='/tmp/'
 containerNamesFile="${tempDir}container_names.txt"
-# Exclude containers you do not want to be backed up
+# Exclude containers you do not want to be checked
 exclude=("container-1" "container-2" "container-3")
 # Your webhook URL for the Discord channel you want alerts sent to
 discordWebhookURL=''
