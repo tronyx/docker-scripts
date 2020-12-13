@@ -152,16 +152,17 @@ compose_down() {
 
 # Loop through all containers to backup appdata dirs
 backup() {
-  while IFS= read -r CONTAINER; do
-    if [[ ! "${exclude[*]}" =~ ${CONTAINER} ]]; then
-      echo "Backing up ${CONTAINER}..."
-      tar czf "${backupDirectory}""${CONTAINER}"-"${today}".tar.gz -C "${appdataDirectory}" "${CONTAINER}"/
-    fi
-  done < <(cat "${containerNamesFile}")
+    while IFS= read -r CONTAINER; do
+        if [[ ! "${exclude[*]}" =~ ${CONTAINER} ]]; then
+            echo "Backing up ${CONTAINER}..."
+            tar czf "${backupDirectory}""${CONTAINER}"-"${today}".tar.gz -C "${appdataDirectory}" "${CONTAINER}"/
+        fi
+    done < <(cat "${containerNamesFile}")
 }
 
 # Start containers and sleep to make sure they have time to startup
 compose_up() {
+    echo 'Performing docker-compose up...'
     COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" up -d --no-color
     sleep 120
 }
@@ -198,7 +199,6 @@ main(){
     elif [ "${update}" = 'true' ]; then
         update_images
         create_containers_list
-        compose_down
         compose_up
         domain_check
         cleanup
