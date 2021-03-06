@@ -17,6 +17,20 @@ I utilize the CloudFlare maintenance page setup from [gilbN](https://github.com/
 237    stop_maint
 ```
 
+The script is setup so that you can have it send a Discord notification on maintenance start and maintenance completion, with a status message, or it can send you a text message as well. The correspondding variables at the top of the script will need to be filled in/modified:
+
+```
+20    # Set your notification type
+21    discord='false'
+22    text='false'
+23    # Set to true if you want a notification at the start of the maintenance
+24    notifyStart='false'
+25    # Set your Discord webhook URL if you set discord to true
+26    webhookURL=''
+27    # Define your SMS e-mail address (AT&T as an example) if you set text to true
+28    smsAddress='5551234567@txt.att.net'
+```
+
 ### Backup Docker Compose Containers
 
 Script to update, backup, or update and backup your Docker-Compose containers.
