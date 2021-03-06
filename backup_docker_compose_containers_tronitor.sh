@@ -6,28 +6,34 @@ set -eo pipefail
 IFS=$'\n\t'
 
 # Define some vars
-tempDir='/tmp/'
+tempDir='/tmp/tronitor/'
+healthchecksLockFile="${tempDir}healthchecks.lock"
+dockerChecksLockFile="${tempDir}docker_checks.lock"
 composeFile='/home/docker-compose.yml'
 containerNamesFile="${tempDir}container_names.txt"
-# Define appdata directory path (Requires trailing slash)
 appdataDirectory='/home/'
-# Define backup directory (Requires trailing slash)
 backupDirectory='/mnt/docker_backup/'
+tronitorDirectory='/home/tronyx/scripts/tronitor/'
 today=$(date +%Y-%m-%d)
-# Define time to keep backups
 days=$(( ( $(date '+%s') - $(date -d '2 months ago' '+%s') ) / 86400 ))
-# Define your domain (No scheme)
-domain='domain.com'
-# Define your SMS e-mail address (AT&T as an example)
-smsAddress='5551235555@txt.att.net'
-# Exclude containers you do not want to be backed up
-exclude=("container-1" "container-2" "container-3")
+domain='tronflix.app'
+# Set your notification type
+discord='false'
+text='false'
+# Set to true if you want a notification at the start of the maintenance
+notifyStart='false'
+# Set your Discord webhook URL if you set discord to true
+webhookURL=''
+# Define your SMS e-mail address (AT&T as an example) if you set text to true
+smsAddress='5551234567@txt.att.net'
+# Exclude containers, IE:
+# ("plex" "sonarr" "radarr" "lidarr")
+exclude=("sonarr")
 # Arguments
 readonly args=("$@")
 # Colors
 readonly grn='\e[32m'
 readonly red='\e[31m'
-#readonly ylw='\e[33m'
 readonly lorg='\e[38;5;130m'
 readonly endColor='\e[0m'
 
@@ -35,12 +41,12 @@ readonly endColor='\e[0m'
 usage() {
     cat <<- EOF
 
-  Usage: $(echo -e "${lorg}$0${endColor}") $(echo -e "${grn}"-[OPTION]"${endColor}")
+    Usage: $(echo -e "${lorg}$0${endColor}") $(echo -e "${grn}"-[OPTION]"${endColor}")
 
-  $(echo -e "${grn}"-b/--backup"${endColor}""${endColor}")      Backup all Docker containers.
-  $(echo -e "${grn}"-u/--update"${endColor}")      Update all Docker containers.
-  $(echo -e "${grn}"-a/--all"${endColor}")         Backup and update all Docker containers.
-  $(echo -e "${grn}"-h/--help"${endColor}")        Display this usage dialog.
+    $(echo -e "${grn}"-b/--backup"${endColor}""${endColor}")      Backup all Docker containers.
+    $(echo -e "${grn}"-u/--update"${endColor}")      Update all Docker containers.
+    $(echo -e "${grn}"-a/--all"${endColor}")         Backup and update all Docker containers.
+    $(echo -e "${grn}"-h/--help"${endColor}")        Display this usage dialog.
 
 EOF
 
@@ -109,7 +115,6 @@ get_scriptname() {
 }
 
 readonly scriptname="$(get_scriptname)"
-#readonly scriptpath="$(cd -P "$(dirname "${scriptname}")" > /dev/null && pwd)"
 
 # Check whether or not user is root or used sudo
 root_check() {
@@ -132,11 +137,35 @@ check_empty_arg() {
     done
 }
 
-# Pause monitors w/ Tronitor
-# Need to specify the location of the tronitor script
+# Function to enable CloudFlare maintenance page and notify of maintenance
+# start, if notifyStart set to true
+# Adjust or comment out the path to the CF maintenance page script
+start_maint() {
+    if [[ ${notifyStart} == 'true' ]]; then
+        if [[ ${discord} == 'true' ]]; then
+            curl -s -H "Content-Type: application/json" -X POST -d '{"embeds": [{"title": "Docker Compose Backup/Update Started!", "description": "The scheduled run of the Docker Compose containers update/backup script has started.", "color": 39219}]}' "${webhookURL}"
+        fi
+    fi
+    echo 'Enabling CloudFlare maintenance page...'
+    /root/scripts/start_maint.sh
+}
+
+# Function to create lockfile for pausing application and container checks
+create_lock_files() {
+    echo 'Creating lock files...'
+    true > "${healthchecksLockFile}"
+    true > "${dockerChecksLockFile}"
+}
+
+# Pause monitors with Tronitor
 pause_all_monitors() {
-    echo 'Pausing monitors...'
-    /path/to/tronitor.sh -p all
+    # Comment out what you do not use
+    echo 'Pausing Healthchecks.io monitors...'
+    "${tronitorDirectory}"tronitor_no_jq.sh -m hc -p all
+    echo 'Pausing UptimeRobot monitors...'
+    "${tronitorDirectory}"tronitor_no_jq.sh -m ur -p all
+    echo 'Pausing Upptime monitors...'
+    "${tronitorDirectory}"tronitor_no_jq.sh -m up -p all
 }
 
 # Update Docker images
@@ -148,10 +177,10 @@ update_images() {
 # Create list of container names
 create_containers_list() {
     echo 'Creating list of Docker containers...'
-    COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" config --services | sort > "${containerNamesFile}"
+    /usr/local/bin/docker-compose -f "${composeFile}" config --services | sort > "${containerNamesFile}"
 }
 
-# Take down containers and networks
+# Stop containers
 compose_down() {
     echo 'Performing docker-compose down...'
     COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" down
@@ -171,24 +200,52 @@ backup() {
 compose_up() {
     echo 'Performing docker-compose up...'
     COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" up -d --no-color
-    sleep 120
+    echo 'Sleeping for 5 minutes to allow the containers to start...'
+    sleep 300
 }
 
-# Check if Domain is loading properly and, if so, unpause monitors with Tronitor
-# If not, send a text to specified number
+# Function to disable CloudFlare maintenance page
+# Adjust or comment out the path to the CF maintenance page script
+stop_maint() {
+    echo 'Disabling CloudFlare maintenance page...'
+    /root/scripts/stop_maint.sh
+}
+
+# Unpause monitors if TronFlix status is 200
 unpause_check(){
-    domainStatus=$(curl -sI https://"${domain}" |grep -i http/ |awk '{print $2}')
-    domainCurl=$(curl -sI https://"${domain}" |head -2)
+    echo 'Sleeping for 5 minutes to allow the applications to finish starting...'
+    sleep 300
+    echo 'Performing monitor unpause check...'
+    domainStatus=$(curl -sI https://"${domain}" | grep -i http/ |awk '{print $2}')
+    domainCurl=$(curl -sI https://"${domain}" | head -2)
     if [ "${domainStatus}" == 200 ]; then
-        echo 'Unpausing monitors...'
-        /path/to/tronitor.sh -u all
+        echo 'Success!'
+        # Comment out what you do not need
+        echo 'Unpausing HealthChecks.io monitors...'
+        "${tronitorDirectory}"tronitor_no_jq.sh -m hc -u all
+        echo 'Unpausing UptimeRobot monitors...'
+        "${tronitorDirectory}"tronitor_no_jq.sh -m ur -u all
+        echo 'Unpausing Upptime monitors...'
+        "${tronitorDirectory}"tronitor_no_jq.sh -m up -u all
+        echo 'Removing lock files...'
+        rm -rf "${healthchecksLockFile}"
+        rm -rf "${dockerChecksLockFile}"
+        stop_maint
+        if [[ ${discord} == 'true' ]]; then
+            curl -s -H "Content-Type: application/json" -X POST -d '{"embeds": [{"title": "Docker Compose Backup/Update Completed!", "description": "The scheduled run of the Docker Compose containers backup/update was successful. The specified Domain responded with an HTTP status of 200 after the containers were brought back online.", "color": 39219}]}' "${webhookURL}"
+        fi
     else
-        echo "${domainCurl}" |mutt -s "${domain} is still down after weekly backup!" "${smsAddress}"
+        if [[ ${text} == 'true' ]]; then
+            echo "${domainCurl}" |mutt -s "${domain} is still down after weekly backup!" "${smsAddress}"
+        elif [[ ${discord} == 'true' ]]; then
+            curl -s -H "Content-Type: application/json" -X POST -d '{"embeds": [{"title": "Docker Compose Backup/Update Failed!", "description": "The scheduled run of the Docker Compose containers backup/update has failed! The specified Domain did NOT respond with an HTTP status of 200 after the containers were brought back online!", "color": 16711680}]}' "${webhookURL}"
+        fi
     fi
 }
 
 # Cleanup backups older than two months and perform docker prune
 cleanup(){
+    echo 'Removing old backups and performing docker prune...'
     find "${backupDirectory}"*.tar.gz -mtime +"${days}" -type f -delete
     docker system prune -f -a --volumes
 }
@@ -198,7 +255,7 @@ main(){
     cmdline "${args[@]:-}"
     check_empty_arg
     if [ "${backup}" = 'true' ]; then
-        pause_all_monitors
+        start_maint
         create_containers_list
         compose_down
         backup
@@ -206,14 +263,14 @@ main(){
         unpause_check
         cleanup
     elif [ "${update}" = 'true' ]; then
-        pause_all_monitors
+        start_maint
         update_images
         create_containers_list
         compose_up
         unpause_check
         cleanup
     elif [ "${all}" = 'true' ]; then
-        pause_all_monitors
+        start_maint
         update_images
         create_containers_list
         compose_down

@@ -6,28 +6,31 @@ set -eo pipefail
 IFS=$'\n\t'
 
 # Define some vars
-tempDir='/tmp/'
+tempDir='/tmp/tronitor/'
 composeFile='/home/docker-compose.yml'
 containerNamesFile="${tempDir}container_names.txt"
-# Define appdata directory path (Requires trailing slash)
 appdataDirectory='/home/'
-# Define backup directory (Requires trailing slash)
 backupDirectory='/mnt/docker_backup/'
 today=$(date +%Y-%m-%d)
-# Define time to keep backups
 days=$(( ( $(date '+%s') - $(date -d '2 months ago' '+%s') ) / 86400 ))
-# Define your domain (No scheme)
 domain='domain.com'
-# Define your SMS e-mail address (AT&T as an example)
-smsAddress='5551235555@txt.att.net'
-# Exclude containers you do not want to be backed up
-exclude=("gitlab-dind" "cfddns")
+# Set your notification type
+discord='false'
+text='false'
+# Set to true if you want a notification at the start of the maintenance
+notifyStart='false'
+# Set your Discord webhook URL if you set discord to true
+webhookURL=''
+# Define your SMS e-mail address (AT&T as an example) if you set text to true
+smsAddress='5551234567@txt.att.net'
+# Exclude containers, IE:
+# ("plex" "sonarr" "radarr" "lidarr")
+exclude=("sonarr")
 # Arguments
 readonly args=("$@")
 # Colors
 readonly grn='\e[32m'
 readonly red='\e[31m'
-#readonly ylw='\e[33m'
 readonly lorg='\e[38;5;130m'
 readonly endColor='\e[0m'
 
@@ -35,12 +38,12 @@ readonly endColor='\e[0m'
 usage() {
     cat <<- EOF
 
-  Usage: $(echo -e "${lorg}$0${endColor}") $(echo -e "${grn}"-[OPTION]"${endColor}")
+    Usage: $(echo -e "${lorg}$0${endColor}") $(echo -e "${grn}"-[OPTION]"${endColor}")
 
-  $(echo -e "${grn}"-b/--backup"${endColor}""${endColor}")      Backup all Docker containers.
-  $(echo -e "${grn}"-u/--update"${endColor}")      Update all Docker containers.
-  $(echo -e "${grn}"-a/--all"${endColor}")         Backup and update all Docker containers.
-  $(echo -e "${grn}"-h/--help"${endColor}")        Display this usage dialog.
+    $(echo -e "${grn}"-b/--backup"${endColor}""${endColor}")      Backup all Docker containers.
+    $(echo -e "${grn}"-u/--update"${endColor}")      Update all Docker containers.
+    $(echo -e "${grn}"-a/--all"${endColor}")         Backup and update all Docker containers.
+    $(echo -e "${grn}"-h/--help"${endColor}")        Display this usage dialog.
 
 EOF
 
@@ -109,7 +112,6 @@ get_scriptname() {
 }
 
 readonly scriptname="$(get_scriptname)"
-#readonly scriptpath="$(cd -P "$(dirname "${scriptname}")" > /dev/null && pwd)"
 
 # Check whether or not user is root or used sudo
 root_check() {
@@ -132,6 +134,19 @@ check_empty_arg() {
     done
 }
 
+# Function to enable CloudFlare maintenance page and notify of maintenance
+# start, if notifyStart set to true
+# Adjust or comment out the path to the CF maintenance page script
+start_maint() {
+    if [[ ${notifyStart} == 'true' ]]; then
+        if [[ ${discord} == 'true' ]]; then
+            curl -s -H "Content-Type: application/json" -X POST -d '{"embeds": [{"title": "Docker Compose Backup/Update Started!", "description": "The scheduled run of the Docker Compose containers update/backup script has started.", "color": 39219}]}' "${webhookURL}"
+        fi
+    fi
+    echo 'Enabling CloudFlare maintenance page...'
+    /root/scripts/start_maint.sh
+}
+
 # Update Docker images
 update_images() {
     echo 'Updating Docker images...'
@@ -141,10 +156,10 @@ update_images() {
 # Create list of container names
 create_containers_list() {
     echo 'Creating list of Docker containers...'
-    COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" config --services | sort > "${containerNamesFile}"
+    /usr/local/bin/docker-compose -f "${composeFile}" config --services | sort > "${containerNamesFile}"
 }
 
-# Take down containers and networks
+# Stop containers
 compose_down() {
     echo 'Performing docker-compose down...'
     COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" down
@@ -153,7 +168,7 @@ compose_down() {
 # Loop through all containers to backup appdata dirs
 backup() {
     while IFS= read -r CONTAINER; do
-        if [[ ! "${exclude[*]}" =~ ${CONTAINER} ]]; then
+        if [[ ! ${exclude[*]} =~ ${CONTAINER} ]]; then
             echo "Backing up ${CONTAINER}..."
             tar czf "${backupDirectory}""${CONTAINER}"-"${today}".tar.gz -C "${appdataDirectory}" "${CONTAINER}"/
         fi
@@ -164,23 +179,42 @@ backup() {
 compose_up() {
     echo 'Performing docker-compose up...'
     COMPOSE_HTTP_TIMEOUT=900 COMPOSE_PARALLEL_LIMIT=25 /usr/local/bin/docker-compose -f "${composeFile}" up -d --no-color
-    sleep 120
+    echo 'Sleeping for 5 minutes to allow the containers to start...'
+    sleep 300
 }
 
-# Check if Domain is loading properly and, if so, unpause monitors with Tronitor
-# If not, send a text to specified number
-domain_check(){
-    domainStatus=$(curl -sI https://"${domain}" |grep -i http/ |awk '{print $2}')
-    domainCurl=$(curl -sI https://"${domain}" |head -2)
+# Function to disable CloudFlare maintenance page
+# Adjust or comment out the path to the CF maintenance page script
+stop_maint() {
+    echo 'Disabling CloudFlare maintenance page...'
+    /root/scripts/stop_maint.sh
+}
+
+# Unpause monitors if TronFlix status is 200
+unpause_check(){
+    echo 'Sleeping for 5 minutes to allow the applications to finish starting...'
+    sleep 300
+    echo 'Performing monitor unpause check...'
+    domainStatus=$(curl -sI https://"${domain}" | grep -i http/ |awk '{print $2}')
+    domainCurl=$(curl -sI https://"${domain}" | head -2)
     if [ "${domainStatus}" == 200 ]; then
-        :
+        echo 'Success!'
+        stop_maint
+        if [[ ${discord} == 'true' ]]; then
+            curl -s -H "Content-Type: application/json" -X POST -d '{"embeds": [{"title": "Docker Compose Backup/Update Completed!", "description": "The scheduled run of the Docker Compose containers backup/update was successful. The specified Domain responded with an HTTP status of 200 after the containers were brought back online.", "color": 39219}]}' "${webhookURL}"
+        fi
     else
-        echo "${domainCurl}" |mutt -s "${domain} is still down after weekly backup!" "${smsAddress}"
+        if [[ ${text} == 'true' ]]; then
+            echo "${domainCurl}" |mutt -s "${domain} is still down after weekly backup!" "${smsAddress}"
+        elif [[ ${discord} == 'true' ]]; then
+            curl -s -H "Content-Type: application/json" -X POST -d '{"embeds": [{"title": "Docker Compose Backup/Update Failed!", "description": "The scheduled run of the Docker Compose containers backup/update has failed! The specified Domain did NOT respond with an HTTP status of 200 after the containers were brought back online!", "color": 16711680}]}' "${webhookURL}"
+        fi
     fi
 }
 
 # Cleanup backups older than two months and perform docker prune
 cleanup(){
+    echo 'Removing old backups and performing docker prune...'
     find "${backupDirectory}"*.tar.gz -mtime +"${days}" -type f -delete
     docker system prune -f -a --volumes
 }
@@ -190,25 +224,33 @@ main(){
     cmdline "${args[@]:-}"
     check_empty_arg
     if [ "${backup}" = 'true' ]; then
+        start_maint
+        create_lock_files
         create_containers_list
         compose_down
         backup
+        backup_env_files
         compose_up
-        domain_check
+        unpause_check
         cleanup
     elif [ "${update}" = 'true' ]; then
+        start_maint
+        create_lock_files
         update_images
         create_containers_list
         compose_up
-        domain_check
+        unpause_check
         cleanup
     elif [ "${all}" = 'true' ]; then
+        start_maint
+        create_lock_files
         update_images
         create_containers_list
         compose_down
         backup
+        backup_env_files
         compose_up
-        domain_check
+        unpause_check
         cleanup
     fi
 }
