@@ -134,6 +134,14 @@ check_empty_arg() {
     done
 }
 
+# Function to check that the webhook URL is defined if discord is set to true.
+check_webhook_url() {
+    if [[ -z ${webhookURL} ]] && [[ ${discord} == 'true' ]]; then
+        echo -e "${red}You didn't define your Discord webhook URL, exiting!${endColor}"
+        exit 1
+    fi
+}
+
 # Function to enable CloudFlare maintenance page and notify of maintenance
 # start, if notifyStart set to true
 # Adjust or comment out the path to the CF maintenance page script
@@ -223,6 +231,7 @@ main(){
     root_check
     cmdline "${args[@]:-}"
     check_empty_arg
+    check_webhook_url
     if [ "${backup}" = 'true' ]; then
         start_maint
         create_lock_files
