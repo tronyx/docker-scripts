@@ -26,7 +26,7 @@ check_containers() {
         if [ -s ${containerNamesFile} ]; then
         while IFS= read -r container; do
             if [[ ! ${exclude[*]} =~ ${container} ]]; then
-                containerStatus=$(docker inspect "${container}" |jq .[].State.Status |tr -d '"')
+                containerStatus=$(docker inspect "${container}" | jq .[].State.Status | tr -d '"')
                 if [ "${containerStatus}" = 'running' ];then
                     :
                 elif [ "${containerStatus}" = 'exited' ];then
